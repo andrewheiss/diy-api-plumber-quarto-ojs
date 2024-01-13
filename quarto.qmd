@@ -1,0 +1,141 @@
+# Quarto and APIs
+
+Using data from APIs like this is super straightforward with Quarto. I already showed examples of using data from the API with both [Goodreads](plumber-goodreads.qmd) and [Fitbit](plumber-fitbit.qmd), so I'll mostly repeat those examples here. 
+
+There are essentially two ways data from an API will get used in a Quarto document: (1) when the document is compiled, and (2) when the document is viewed.
+
+## Using API data when compiling (all Quarto formats, including HTML, PDF, and Word)
+
+You can use API data when rendering to any Quarto format, since both R and Python chunks can load, clean, and display that data. Each time you render the document, it'll grab and use the latest data. For instance, consider this document:
+
+```` 
+---
+title: "2023 reading report"
+format:
+  html: default
+  pdf: default
+  docx: default
+---
+
+```{{r}}
+#| label: load-libraries-data
+#| include: false
+
+library(tidyverse)
+library(jsonlite)
+
+books_raw <- read_json(
+  "https://api.andrewheiss.com/books_simple?year=2023", 
+  simplifyVector = TRUE
+)
+
+total <- books_raw$count
+
+monthly_counts <- books_raw$monthly_count
+
+avg_rating <- books_raw$full_data |> 
+  summarize(avg = mean(rating)) |> 
+  pull(avg)
+```
+
+In 2023, I read `r total` books, with an average rating of `r round(avg_rating, 2)` of 5 stars.
+
+@fig-monthly-count shows what that looked like over time:
+
+```{{r}}
+#| label: fig-monthly-count
+#| fig-cap: "Books read in each month of 2023"
+#| fig-width: 6
+#| fig-height: 3
+#| echo: false
+
+monthly_counts |> 
+  mutate(read_month_fct = fct_rev(fct_inorder(read_month_fct))) |> 
+  ggplot(aes(x = count, y = read_month_fct)) +
+  geom_col(fill = "darkred") +
+  labs(x = NULL, y = "Count")
+```
+````
+
+Here's what it'll render to:
+
+::: {.panel-tabset .quarto-iframe}
+### HTML
+
+```{=html}
+<iframe src="example/example.html" frameborder="0" style="overflow:hidden;height:450px;width:100%;border:2px solid #ccc;"></iframe>
+```
+
+### PDF
+
+```{=html}
+<iframe src="example/example.pdf" frameborder="0" style="overflow:hidden;height:450px;width:100%;border:2px solid #ccc;"></iframe>
+```
+
+### Word
+
+[Download the Word file](example/example.docx)
+
+:::
+
+
+## Using API data live (only HTML-based Quarto formats)
+
+Using the API like this gets the most recent version of the data *at the time of rendering*, but it won't show the most current version when you view it. That's understandable for things like PDFs and Word files—those are static output formats and they're not designed to show live data. HTML, though, *can* show live data, just not with R and Python (unless you use a [Shiny server](https://www.rstudio.com/products/shiny/)).
+
+Instead of using R chunks, you can use [Observable JS chunks](https://quarto.org/docs/computations/ojs.html), which Quarto supports natively.
+
+I've already shown examples of using both GET and POST requests to get data from an API:
+
+- [Goodreads through GET](plumber-goodreads.qmd#with-observable) 
+- [Fitbit through POST](plumber-fitbit.qmd#with-observable)
+
+Here's a plot of Goodreads data, just for fun. This is **live** data. Even if you visit this page months after I rendered it, you'll still see the most recent version of the data. That's magical.
+
+Even better, you can create a [Quarto Dashboard](https://quarto.org/docs/dashboards/) to show a live overview of your data.
+
+```{ojs}
+//| code-fold: true
+//| code-summary: "Show the OJS code"
+d3 = require('d3')
+
+viewof year_to_show = Inputs.radio(["2023", "2024"], {value: "2023", label: "Year to show"})
+
+books = await d3.json(
+  // This is my live API so it runs in your browser.
+  // Use your local API URL on your computer.
+  "https://api.andrewheiss.com/books_simple?year=" + year_to_show
+)
+
+book_noun = (books.count[0] === 1 ? " book read" : " books read")
+
+Plot.plot({
+  title: books.count[0] + book_noun + " in " + year_to_show,
+  y: {
+    label: "Books read",
+    grid: false,
+    percent: false
+  },
+  x: {
+    label: "Month",
+    domain: books.monthly_count.map(d => d.read_month_fct),
+  },
+  marks: [
+    Plot.ruleY([0]),
+    Plot.axisX({label: null, ticks: null}),
+    Plot.axisY({label: null, ticks: null}),
+
+    Plot.barY(books.monthly_count, {
+      x: "read_month_fct", 
+      y: "count", 
+      fill: "#f3752f",
+      tip: {
+        format: {
+          x: true,
+          y: true
+        }
+      }
+    })
+  ]
+})
+```

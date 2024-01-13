@@ -1,0 +1,29 @@
+# Deploying your API
+
+So far, your API lives on your computer only and is accessible with URLs like `http://127.0.0.1:6312` or `http://localhost:6312`. If you only ever want to run this stuff locally, that's great! You're done!
+
+But you probably want to make it more publicly accessible. And that's a little tricky.
+
+The {plumber} documentation [has a whole page about hosting the API](https://www.rplumber.io/articles/hosting.html), with several different options. The most common options (unless you somehow have access to Posit Connect, which lets you do this all automatically) are to use something like a $4/month [DigitalOcean](https://www.digitalocean.com/) server and [the {plumberDeploy} package](https://github.com/meztez/plumberDeploy), or to use [Docker](https://www.docker.com/) and run the Docker image on any server. 
+
+::: {.callout-tip}
+### What I do
+
+Or do what I do and use Docker *on* a DigitalOcean server. This makes it so I can SSH into my server (or use [Visual Studio Code's remote session feature](https://code.visualstudio.com/docs/remote/remote-overview)), run this:
+
+``` sh
+docker-compose up -d --build
+```
+
+…and it's live and ready to go.
+
+The way I figured out how to get everything configured was [following DigitalOcean's docker-compose tutorial here](https://www.digitalocean.com/community/tutorials/how-to-secure-a-containerized-node-js-application-with-nginx-let-s-encrypt-and-docker-compose), but replacing references to their example Node app with my Plumber app.
+
+[This repository](https://github.com/andrewheiss/docker-plumber-nginx-letsencrypt) provides a basic example of what that looks like.
+:::
+
+Because there are so many ways to get the API live, and so many moving parts (setting up nginx or Apache, setting up Docker and/or docker-compose, setting up [Let's Encrypt](https://letsencrypt.org/) for https, etc.), setting this up goes beyond the scope of this tutorial. 
+
+I unfortunately must leave you with the infamous owl. You're on your own for this :(
+
+![Draw the rest of the f—ing owl](img/draw-owl.jpeg)

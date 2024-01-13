@@ -1,0 +1,76 @@
+---
+title: "Overview"
+include-after-body: 
+  text: |
+    <style>
+    .quarto-page-breadcrumbs {
+        display: none !important;
+    }
+    </style>
+---
+
+# Overview
+
+::: {.column-page-right}
+![Overview of this whole process](assets/out/overview.svg)
+:::
+
+::: {.callout-tip}
+## Final API
+   
+In this tutorial, we'll build a {plumber} API step-by-step. [You can see the final version at this GitHub repository.](https://github.com/andrewheiss/basic-plumber-api)
+:::
+
+::: {.callout-tip}
+## The code for this book
+   
+The code for this Quarto book is [all accessible at Github too](https://github.com/andrewheiss/diy-api-plumber-quarto-ojs).
+:::
+
+---
+
+This tutorial has three general parts:
+
+## Part 1: Get data from different parts of the internet and put them in a central, easily accessible location
+
+Lots of web-based services have their own APIs that require special types of authentication, or offer data through RSS feeds that are updated when data changes. You need some way to connect to these services and collect their data. 
+
+The *absolute easiest* way I've found for doing this is to use [Make.com](https://www.make.com/en) (formerly Integromat), which lets you create and run mini pipelines that will collect data and do stuff with it, either on a regular schedule or when triggered by some other thing. They have a generous free plan, a cheap paid plan, a helpful community, and a relatively straightforward interface.
+   
+I've also found that it's easiest to take all these data sources and feed them into either [Google Sheets](https://www.google.com/sheets/about/) or [Airtable](https://www.airtable.com/), which are free and let you edit and manage the inserted data easily. A Real Grown Up Web Application™ would use some sort of database to store everything, but we're not doing that here.
+   
+You can also do all this with other services like [Zapier](https://zapier.com/) that connect to Google Sheets, Airtable, or whatever you're using. 
+   
+Or you can technically do it all with R or Python or whatever—but then you're responsible for building your own RSS reading functions, generating and renewing OAuth tokens, running scripts with `cron` and so on, and that's a huge mess. Life is short. Make.com works great.
+
+## Part 2: Create an API for cleaning and serving all that data
+
+Once the data is all safely tucked away in a spreadsheet-like home, you need to be able to pull it out and do stuff with it. R has packages that make it easy to do that, like [{googlesheets4}](https://googlesheets4.tidyverse.org/) for data in Google Sheets and [{airtabler}](https://github.com/bergant/airtabler) for data in Airtable. This data is often messy and unprocessed, so you can use tools like {dplyr} and the rest of the {tidyverse} to clean it up.
+
+Once it's clean and processed, you can make it accessible to the world (or just yourself) with a [RESTful](https://en.wikipedia.org/wiki/REST) web interface. This means that you can visit a URL like `http://api.whatever.com/books?start_date=2024-01-01` and get a JSON file of all the books you've read since January 1, 2024 (pulled from your Google Sheet), which you can then use however you want.
+   
+The [{plumber} R package](https://www.rplumber.io/) makes it really easy to create an API server with just R.
+
+## Part 3: Do stuff with that data
+
+Once you have regularly updated data accessible through URLs, you can do stuff with it. You can read it into R with [{httr2}](https://httr2.r-lib.org/) or [{jsonlite}](https://cran.r-project.org/web/packages/jsonlite/index.html). You can read it into Python with [`requests`](https://pypi.org/project/requests/). You can load it with the [Fetch API](https://developer.mozilla.org/en-US/docs/Web/API/Fetch_API/Using_Fetch) with JavaScript.
+
+If you want to use the data live, like in a dashboard, you can use [Observable JS](https://observablehq.com/@observablehq/observables-not-javascript) chunks in a Quarto document, which will magically pull the latest version of the data into your browser session and let you do stuff with it. 
+
+Like this! I have an endpoint named `_now` at my personal API that just spits out a JSON file of the current date and time on the server. Refresh this page and the chunk below will run again and show the latest time.
+
+```{ojs}
+//| echo: fenced
+d3 = require('d3')
+
+time_on_server = await d3.json(
+  "https://api.andrewheiss.com/_now"
+)
+
+time_on_server
+```
+
+```{ojs}
+//| echo: fenced
+time_on_server.current_date
+```

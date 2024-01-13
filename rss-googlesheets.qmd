@@ -1,0 +1,67 @@
+# Example: Goodreads RSS to Google Sheets
+
+Here, we'll take an RSS feed of books read and feed new entries as new rows in a Google Sheet.
+
+## Step 1: Find a Goodreads RSS feed
+
+I track [all the books I read](https://www.goodreads.com/review/list/2733632) in [Goodreads](https://www.goodreads.com/). The website feels stuck in 2013 (since Amazon hasn't really touched it since buying it then), but I like the little community I have there—I find a ton of books by seeing what my friends are reading.
+
+Goodreads doesn't have an API, but they do have a public RSS feed for every user's public reading list. Visit a reading list ([like mine here](https://www.goodreads.com/review/list/2733632)) and you'll see an RSS icon in the bottom corner. Copy that link and you'll have a feed to the 100 most recent books.
+
+![Hard-to-find Goodreads RSS link](img/goodreads-rss.png)
+
+## Step 2: Watch the RSS feed with Make
+
+We'll create this little scenario at Make.com—an RSS feed that flows into a Google Sheet:
+
+![](img/make-rss-google.png)
+
+At Make.com, create a new scenario and add an RSS module that watches RSS feed items:
+
+![New RSS trigger](img/make-new-rss.png)
+
+Click on the new module and change the settings so that it looks at the RSS feed you care about. You can also right click on the module to change its name (like I've done here, calling it "Goodreads RSS feed"):
+
+![RSS module settings](img/make-rss-google_rss-settings.png)
+
+Click on the big purple "Run once" button in the bottom right corner to grab data from the feed. It should add a little white number that looks like a thought bubble that shows the results, automatically parsed as a JSON-looking "collection".
+
+![RSS Results](img/make-rss-results.png)
+
+Cool cool. It worked.
+
+
+## Step 3: Connect the RSS feed to Google
+
+Next we need to do something with that data. We'll stick it in a Google Sheet. It could just as easily go to some place like Airtable, or even in an internal [Make data store](https://www.make.com/en/help/tools/data-store). But Google is easy to use, so we'll do that.
+
+First, go create a new Google Sheet that has a bunch of columns in it. If you look at the results from the initial run of the RSS feed, you'll see that there are some consistent fields, like `id`, `pubdate`, `title`, `author_name`, `user_rating`, and so on. Make columns for things that you might want to keep. You can see [my public Google Sheet here](https://docs.google.com/spreadsheets/d/1oQqX4G4CJaa7cgfsEW4LeorcQwxVeYe0Q83WrJbcN6Y/edit#gid=0)—I've included a bunch of columns (basically columns for all possible data that might be present in the feed).
+
+![Google Sheet for holding entries from Goodreads](img/google-goodreads.png)
+
+In your Make scenario, add a Google Sheets module for adding a new row:
+
+![Make module for adding a new row to a Google Sheet](img/make-googlesheet-new-row.png)
+
+Add a new connection to your Google account to authorize Make to access your Google Drive, then choose what Google Sheet to append rows to:
+
+![Google Sheets module setup](img/make-rss-google_google-settings.png)
+
+Scroll down a little bit to the "Values" section. Herein lies magic. 
+
+You get to map which fields in the RSS feed will get inserted into which columns in the Google Sheet. Click on the little orange elements to add them to the column fields.
+
+![Mapping RSS values to columns](img/make-rss-google_google-settings-1.png)
+
+You might discover that you don't have a column for one of the possible RSS values. Don't worry! You can add it to your Google Sheet, refresh the connection in Make, and drag an RSS value to it.
+
+Run the scenario with the little purple "Run once" button to make sure everything's working. In theory, you should get new entries in your Google Sheet.
+
+Once you finish with the initial import of your last 100 books (either by setting the RSS module to work with the most recent 100 books, or by clicking on "Run once" a bunch of times), you can turn on a schedule and have it run every couple hours.
+
+
+## Budgeting operations
+
+Make tracks usage based on "operations". This basic workflow has two modules. Each time one runs, it counts as an operation. If Make finds a new entry in the feed, it'll cost two operations (one for checking the feed and one for adding a row). If Make doesn't find a new entry, it'll cost one operation (just one for checking the feed). 
+
+The free level of Make gives you 1,000 operations a month. If you set this to run every two hours, it'll cost (2 operations × 12 times a day) × 30 days = 720 operations/month at most, but only if it adds a new row every two hours. Most likely you'll only have new books once a week or two or three, which means it'll really only use one operation every two hours, so (1 operation × 12 times a day) × 30 days = 360 operations/month on average.

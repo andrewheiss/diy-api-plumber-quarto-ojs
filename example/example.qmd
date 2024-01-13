@@ -1,0 +1,45 @@
+---
+title: "2023 reading report"
+format:
+  html:
+    embed-resources: true
+---
+
+```{r}
+#| label: load-libraries-data
+#| include: false
+
+library(tidyverse)
+library(jsonlite)
+
+books_raw <- read_json(
+  "https://api.andrewheiss.com/books_simple?year=2023", 
+  simplifyVector = TRUE
+)
+
+total <- books_raw$count
+
+monthly_counts <- books_raw$monthly_count
+
+avg_rating <- books_raw$full_data |> 
+  summarize(avg = mean(rating)) |> 
+  pull(avg)
+```
+
+In 2023, I read `r total` books, with an average rating of `r round(avg_rating, 2)` of 5 stars.
+
+@fig-monthly-count shows what that looked like over time:
+
+```{r}
+#| label: fig-monthly-count
+#| fig-cap: "Books read in each month of 2023"
+#| fig-width: 6
+#| fig-height: 3
+#| echo: false
+
+monthly_counts |> 
+  mutate(read_month_fct = fct_rev(fct_inorder(read_month_fct))) |> 
+  ggplot(aes(x = count, y = read_month_fct)) +
+  geom_col(fill = "darkred") +
+  labs(x = NULL, y = "Count")
+```

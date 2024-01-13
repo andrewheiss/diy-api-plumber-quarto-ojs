@@ -1,0 +1,17 @@
+# Example dashboard
+
+In v1.4, Quarto introduced the [dashboard format](https://quarto.org/docs/dashboards/), and we can use it to add Observable JS chunks that grab and display live data from our API.
+
+Here's an example that shows a bunch of different dashboard features + Arquero manipulation. This only uses the Goodreads API endpoint, which uses token-less GET requests. If you wanted to show something that required a token, you could add a login page to the dasbhoard, like I've done here too.
+
+```{=html}
+<p><a class="btn btn-warning btn-lg" target="_blank" href="dashboard/index.html">View dashboard in new window &raquo;</a></p>
+```
+
+---
+
+::: {.column-page-right}
+```{=html}
+<iframe src="dashboard/index.html" title="Example dashboard" style="overflow:hidden;height:800px;width:100%;border:2px solid #ccc;"></iframe>
+```
+:::

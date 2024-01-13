@@ -1,0 +1,50 @@
+project:
+  type: book
+  preview:
+    port: 7777
+
+book:
+  title: "DIY API with Make and {plumber}"
+  author:
+  - name: Andrew Heiss
+    orcid: 0000-0002-3948-3914
+  date: "2024-01-09"
+
+  repo-url: "https://github.com/andrewheiss/diy-api-plumber-quarto-ojs"
+  repo-actions: [edit, issue]
+
+  page-navigation: true
+
+  chapters:
+    - part: "Introduction"
+      chapters:
+        - index.qmd
+    - part: "Automating stuff with Make.com"
+      chapters:
+        - make.qmd
+        - rss-googlesheets.qmd
+        - fitbit-airtable.qmd
+    - part: "APIs with {plumber}"
+      chapters:
+        - plumber.qmd
+        - get-post.qmd
+        - annotations-errors-cors.qmd
+        - plumber-goodreads.qmd
+        - jwt.qmd
+        - plumber-fitbit.qmd
+    - part: "Using API data with Quarto and Observable JS"
+      chapters:
+        - quarto.qmd
+        - processing-data-r-js.qmd
+        - dashboard.qmd
+    - part: "Final things"
+      chapters:
+        - deploying.qmd
+        - resources.qmd
+
+format:
+  html:
+    html:
+    theme:
+      - zephyr
+      - custom.scss

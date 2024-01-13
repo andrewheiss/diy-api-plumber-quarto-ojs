@@ -1,0 +1,12 @@
+.Rproj.user
+.Rhistory
+.RData
+.Ruserdata
+
+/.quarto/
+_book/
+
+dashboard/index.html
+example/example.html
+example/example.pdf
+example/example.docx

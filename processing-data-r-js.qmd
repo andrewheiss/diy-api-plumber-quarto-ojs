@@ -1,0 +1,46 @@
+# Should you manipulate data with R or JavaScript?
+
+[I made the Goodreads API endpoint](plumber-goodreads.qmd) return three things:
+
+1. The total number of books read in the year
+2. A data frame of monthly counts
+3. The full data
+
+Technically this isn't necessary. I could just return the full data and leave it up to the end user (also me) to summarize it somehow. [That's what I did with the Fitbit data](plumber-fitbit.qmd)—I returned a data frame with a row per day and then summarized it myself before plotting it.
+
+The [Arquero JavaScript library](https://observablehq.com/@uwdata/introducing-arquero) lets you do this with {dplyr}-like syntax (and [this guide](https://observablehq.com/@observablehq/data-wrangling-with-arquero-from-r) is indispensable for translating from dplyr to Arquero):
+
+```{ojs}
+//| echo: fenced
+d3 = require('d3')
+import { aq, op } from "@uwdata/arquero"
+
+books = await d3.json(
+  // This is my live API so it runs in your browser.
+  // Use your local API URL on your computer.
+  "https://api.andrewheiss.com/books_simple?year=2023"
+)
+
+// Convert the books JSON to an Arquero data frame
+books_df = aq.from(books.full_data)
+
+total_books = books_df
+  .rollup({
+    total_books: d => d.count()
+  })
+total_books.view()
+```
+
+```{ojs}
+//| echo: fenced
+books_by_month = books_df
+  .groupby("read_month_fct")
+  .rollup({
+    count: d => d.count()
+  })
+books_by_month.view()
+```
+
+That works. But I'm not very proficient with JavaScript, and in my case I know that I want to show a bar chart with monthly totals, so I'd prefer to let R do the heavy lifting here and just spit out a plot-ready data frame that I don't have to make on my own. 
+
+The magic of this whole {plumber} system is that you can make the API return whatever data you want in whatever structure you want. Handle the bulk of the processing in R and return lots of different pre-calculated values, or return raw-er data that you process on the fly with Arquero. Return whatever you're most comfortable working with! 

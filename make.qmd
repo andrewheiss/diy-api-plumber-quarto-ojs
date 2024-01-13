@@ -1,0 +1,37 @@
+# Make.com
+
+[Make.com](https://www.make.com/en) is a neat service that lets you connect data from tons of different applications online and feed them to each other in workflows or pipelines, like these:
+
+- Watch an RSS feed and post a message to Slack or Discord when it updates
+- Watch a weather API and sent an SMS message when it's supposed to rain tomorrow
+- Watch for Shopify orders and add a new row to a Google Spreadsheet when one is made
+- Watch Google Forms responses and check for keywords and e-mail a notification when one includes specific phrases
+
+…and so on. Basically, Make acts as a pipeline between different services and lets you automate actions how data flows between them. (Remember [Yahoo! Pipes](https://en.wikipedia.org/wiki/Yahoo!_Pipes)? It's like a modern, more powerful version of that.)
+
+## Easy to use!
+
+Make has an easy-to-use graphical interface where you can add applications and draw connections between them. Like this, for instance: this runs every two hours and (1) checks for any new entries in an RSS feed, and if there are new entries, (2) adds details for the book into a Google Sheet, posts about it to Mastodon, and posts about it to Bluesky.
+
+![Example workflow from RSS to lots of different places](img/make-goodreads-example.png)
+
+## Deals with hard stuff!
+
+One really neat thing about Make is that it handles all the hard parts of connecting these different apps. It will log into APIs for you and deal with the [OAuth authentication dance](https://medium.com/typeforms-engineering-blog/the-beginners-guide-to-oauth-dancing-4b8f3666de10) and storing and refreshing tokens. It'll connect to Google, Airtable, Slack, Discord, and dozens of other services. For things that don't have built-in applications, if they have an API, you can still connect to them with the HTTP module (that's how I connect to things like Fitbit and Bluesky and Mastodon). 
+
+Technically you can do all this stuff with R too. The [{googlesheets4}](https://googlesheets4.tidyverse.org/) package has OAuth support built-in ([through {gargle}](https://gargle.r-lib.org/articles/get-api-credentials.html)) to help you get and refresh tokens, and the [{httr2}](https://httr2.r-lib.org/) package can work with any other HTTP-based API too. But then you're responsible for storing those secrets and tokens and credentials somewhere on your computer.
+
+Make workflows can be triggered by a schedule (e.g. every two hours; every day at 10 PM; every Monday, Thursday, and Saturday at 5:34 PM) or by webhooks (special URLs that trigger the workflow when you visit them). Again, you can technically do this on your own too—you can run a script regularly with `cron` and you can set up a webserver to monitor for incoming HTTP requests. But that takes a lot of extra work and server management.
+
+## Free / relatively cheap!
+
+Make offers a free tier where you can run two scenarios or workflows, and their [Core paid level is $9/month](https://www.make.com/en/pricing) for unlimited workflows. I've used a free account for a couple years (back when Make was originally called Integromat) to watch my Goodreads RSS feed and post new entries to Twitter, and then to Mastodon and Bluesky once I quit Twitter. I've since shelled out for the cheapest paid level because I've found it so useful.
+
+## Examples
+
+I'll show two examples of scenarios / pipelines that I use to grab data from other services and feed them into a more centralized, easy to edit location:
+
+- [Goodreads RSS to Google Sheets](rss-googlesheets.qmd)
+- [Fitbit to Airtable](fitbit-airtable.qmd)
+
+There's nothing special about Goodreads or Fitbit, and there's nothing special about using Google Sheets or Airtable. You can just as easily connect an RSS feed to Airtable or Fitbit to Google Sheets, or Slack channels to Google Sheets, or whatever. These are just two examples of workflows that I use regularly.

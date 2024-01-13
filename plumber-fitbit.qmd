@@ -1,0 +1,478 @@
+# Getting Fitbit data with a POST endpoint
+
+Earlier, [we used GET to retrieve data about the books I've read](plumber-goodreads.qmd). I'm happy to make that all public, since it already is. My [Goodreads profile](https://www.goodreads.com/review/list/2733632) is public, Goodreads provides a public RSS feed, and I've made the [Google Sheet](https://docs.google.com/spreadsheets/d/1oQqX4G4CJaa7cgfsEW4LeorcQwxVeYe0Q83WrJbcN6Y/edit#gid=0) where [Make shoves all the RSS items](rss-googlesheets.qmd) public too. My reading life is an, um, open book.
+
+But my Fitbit data isn't public! I want to be able to track the number of minutes I've exercised, trends in sleep scores, heart rate, and so on from a dashboard, but I don't want everyone in the world to access it. 
+
+Putting all that data behind a POST endpoint that requires a JWT token is the best way to control that.
+
+::: {.callout-note}
+### Note on the data source
+
+In an earlier example, I showed [how to use Make.com to regularly grab data from Fitbit and insert it into an Airtable database](fitbit-airtable.qmd). In my actual API, I use the [{airtabler}](https://github.com/bergant/airtabler) R package to access that data and serve it through different endpoints. That requires configuring the Airtable API and storing API keys as enivronment variables. While that's fairly straightforward (and [the documentation for it](https://github.com/bergant/airtabler) is great), it goes beyond the scope of this little tutorial.
+
+So, I've made a [public Google Sheet](https://docs.google.com/spreadsheets/d/175djCkehC5OPN0wEbxPWSYML3JUcbGGVQ871ZLLCxGQ/edit?usp=sharing) that contains the same structure and information as the [Make.com Fitbit to Airtable example](fitbit-airtable.qmd). There's a column named "date" with each day's date, and a column called "data" with raw JSON from the Fitbit API. I've only included data for the first week of January 2024 because (1) that's when I'm writing this, and (2) you don't need to see all the statistics about me :)
+
+[That Google Sheet is here](https://docs.google.com/spreadsheets/d/175djCkehC5OPN0wEbxPWSYML3JUcbGGVQ871ZLLCxGQ/edit?usp=sharing).
+:::
+
+
+## Endpoint code
+
+Again, for the sake of brevity, I'll just include an annotated version of the endpoint code here.
+
+```{.r}
+#* Return JSON data from Google Sheets and FitBit
+#* @tag Data
+#* @serializer json
+#* @post /fitbit_googlesheet
+function(req, res, manual_token = NA) {
+  # Require a JWT
+  require_token(req, res, manual_token)
+
+  library(googlesheets4)
+
+  # Handle NAs correctly when using map_dbl()
+  safe_map_dbl <- possibly(map_dbl, otherwise = NA_real_)
+
+  gs4_deauth()  # The sheet is public so there's no need to log in
+  local_gs4_quiet()  # Turn off the googlesheets messages
+
+  # Load the Google Sheet as a dataframe and parse the JSON in the data column.
+  # This creates a nested list column, and we can access the different elements
+  # with purrr::map()
+  fitbit_data_raw <- read_sheet("https://docs.google.com/spreadsheets/d/175djCkehC5OPN0wEbxPWSYML3JUcbGGVQ871ZLLCxGQ/") |>
+    mutate(data = map(data, ~jsonlite::fromJSON(.)))
+
+  # Create a tidy dataframe of activities
+  activities <- fitbit_data_raw |>
+    mutate(activity = map(data, ~.$activities)) |>
+    # Handle days with no activities
+    mutate(n_activities = map(activity, ~length(.x))) |>
+    filter(n_activities > 0) |>
+    unnest(activity) |>
+    select(date, name, duration) |>
+    mutate(duration = duration / 60 / 1000)  # duration = milliseconds
+
+  # Get a count of exercise/activity minutes per day
+  activities_daily <- activities |>
+    group_by(date) |>
+    summarize(exercise_minutes = sum(duration)) |>
+    ungroup()
+
+  # Calculate the total distance (in miles) per day
+  distances <- fitbit_data_raw |>
+    mutate(distance = map(data, ~.$summary$distances)) |>
+    unnest(distance) |>
+    select(date, activity, distance) |>
+    filter(activity == "total") |>
+    group_by(date) |>
+    summarize(distance = sum(distance)) |>
+    ungroup()
+
+  # Create a dataframe with all sorts of data from the Fitbit JSON
+  fitbit_summary <- fitbit_data_raw |>
+    mutate(
+      steps = safe_map_dbl(data, ~.$summary$steps),
+      floors = safe_map_dbl(data, ~.$summary$floors),
+      restingHeartRate = safe_map_dbl(data, ~.$summary$restingHeartRate),
+      marginalCalories = safe_map_dbl(data, ~.$summary$marginalCalories)
+    ) |>
+    select(-data) |>
+    left_join(activities_daily, by = "date") |>
+    left_join(distances, by = "date") |>
+    replace_na(list(exercise_minutes = 0, distance = 0, steps = 0)) |>
+    mutate(
+      date_actual = ymd(date),
+      month = month(date_actual, label = TRUE, abbr = FALSE),
+      weekday = wday(date_actual, label = TRUE, abbr = FALSE)
+    )
+
+  # Return the summary data and the activities data
+  return(
+    list(
+      summary = fitbit_summary,
+      activities = activities
+    )
+  )
+}
+```
+
+
+## Using the endpoint
+
+### From the documentation
+
+Run your API and you should see a new POST endpoint in the documentation for `/fitbit_googlesheet`. Because we protected it with `require_token()`, we can't use it unless we have a [JWT token](jwt.qmd). It has an optional `manual_token` parameter where you can pass a valid token in manually through the documentation, or we can send it through the headers of the HTTP request.
+
+Here's the token for the username `your_name` and the password `secret`:
+
+``` default
+eyJ0eXAiOiJKV1QiLCJhbGciOiJIUzI1NiJ9.eyJpYXQiOjE3MDUwMDY4MTksInZhbGlkX3VzZXIiOnRydWV9.5hmgBj_uKCOA243FSn77hahm2yi6O2MECDoJXafnkc8
+```
+
+You can also generate it in the documentation by using the `/get_token` endpoint and using `your_name` and `secret` as the username and password.
+
+Paste that into the `manual_token` parameter in the documentation and you should see a JSON file of the cleaned up Fitbit data from the Google Sheet:
+
+![Clean Fitbit data](img/fitbit-results-documentation.png)
+
+### With R
+
+We can use it with R with the {httr2} package. In real life, you'd want to store that token in like an environment variable instead of hardcoding it into the code like this.
+
+``` r
+library(httr2)
+
+fitbit_raw <- request("http://127.0.0.1:6312/fitbit_googlesheet") |> 
+  req_method("POST") |> 
+  req_headers(
+    Authorization = "Bearer eyJ0eXAiOiJKV1QiLCJhbGciOiJIUzI1NiJ9.eyJpYXQiOjE3MDQ5MzQ4MTQsInZhbGlkX3VzZXIiOnRydWUsInVzZXJuYW1lIjoieW91cl9uYW1lIn0.CBOXUjxE6Cc2MS0u11Wa-0CerIATmlJybOoJiSrXjbw"
+  ) |> 
+  req_perform() |>
+  # Automatically convert dataframe-like elements to data frames
+  resp_body_json(simplifyVector = TRUE)
+
+fitbit_summary <- fitbit_raw$summary
+fitbit_summary
+#>         date steps floors restingHeartRate marginalCalories exercise_minutes distance date_actual   month   weekday
+#> 1 2024-01-01 10094      0               69             1571          49.7500     7.61  2024-01-01 January    Monday
+#> 2 2024-01-02 10894      0               69             1459          88.8833     8.19  2024-01-02 January   Tuesday
+#> 3 2024-01-03  3502      0               69             1003          48.5000     2.63  2024-01-03 January Wednesday
+#> 4 2024-01-04  6646      0               70             1175          50.1667     5.00  2024-01-04 January  Thursday
+#> 5 2024-01-05  4914      0               70             1076          53.3333     3.66  2024-01-05 January    Friday
+#> 6 2024-01-06 11563      0               69             1412          22.1833     8.73  2024-01-06 January  Saturday
+#> 7 2024-01-07  7771      0               68              746           0.0000     5.87  2024-01-07 January    Sunday
+#> 8 2024-01-08  4289      0               67             1057          53.1833     3.20  2024-01-08 January    Monday
+
+fitbit_activities <- fitbit_raw$activities
+head(fitbit_activities)
+#>         date     name duration
+#> 1 2024-01-01 Spinning  44.8833
+#> 2 2024-01-01  Workout   4.8667
+#> 3 2024-01-02     Walk  21.3333
+#> 4 2024-01-02     Walk  17.9167
+#> 5 2024-01-02 Spinning  44.7333
+#> 6 2024-01-02  Workout   4.9000
+```
+
+### With Observable
+
+And we can use it in Observable! To avoid hardcoding the token into the source code, we'll use some JavaScript to get the token from the server and store it in the browser's local storage, then use that to make the POST request.
+
+Get a token from my API with the username `your_name` and the password `secret`. This form will store the resulting token in your browser's local storage as `magical_token` (just in case you have other tokens in there).
+
+::: {.panel-tabset}
+### Login form
+
+```{=html}
+<div id="login-note"></div>
+
+<div class="grid">
+  <div class="g-col-12 g-col-md-6 g-start-0 g-start-md-4">
+    <form id="login">
+      <div class="mb-3">
+        <input type="text" id="username" class="form-control" placeholder="Name" aria-label="Name">
+      </div>
+      <div class="mb-3">
+        <input type="password" id="password" class="form-control" placeholder="Password" aria-label="Password">
+      </div>
+      <button type="submit" class="btn btn-primary">Submit</button>
+    </form>
+  </div>
+</div>
+
+<script>
+  document.getElementById('login').addEventListener('submit', function(event) {
+    event.preventDefault();
+
+    let login_note = document.getElementById('login-note');
+
+    var username = document.getElementById('username').value;
+    var password = document.getElementById('password').value;
+
+    fetch('https://api.andrewheiss.com/get_token', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify({
+        username: username,
+        password: password
+      })
+    })
+    .then(response => response.json())
+    .then(data => {
+      if (data.token) {
+        localStorage.setItem('magical_token', data.token);
+        login_note.innerHTML = `
+          <div id="alertContainer" class="container mt-3">
+            <div class="alert alert-success" role="alert">
+                Logged in!
+            </div>
+          </div>
+        `;
+      } else {
+        throw new Error('No token in response');
+      }
+    })
+    .catch(function(error) {
+      console.log(error);
+      login_note.innerHTML = `
+        <div id="alertContainer" class="container mt-3">
+          <div class="alert alert-warning" role="alert">
+              Wrong username or password!
+          </div>
+        </div>
+      `;
+    });
+  });
+</script>
+```
+
+### HTML and JavaScript code for form
+
+```{.html}
+<div id="login-note"></div>
+
+<div class="grid">
+  <div class="g-col-12 g-col-md-6 g-start-0 g-start-md-4">
+    <form id="login">
+      <div class="mb-3">
+        <input type="text" id="username" class="form-control" placeholder="Name" aria-label="Name">
+      </div>
+      <div class="mb-3">
+        <input type="password" id="password" class="form-control" placeholder="Password" aria-label="Password">
+      </div>
+      <button type="submit" class="btn btn-primary">Submit</button>
+    </form>
+  </div>
+</div>
+
+<script>
+  document.getElementById('login').addEventListener('submit', function(event) {
+    event.preventDefault();
+
+    let login_note = document.getElementById('login-note');
+
+    var username = document.getElementById('username').value;
+    var password = document.getElementById('password').value;
+
+    fetch('https://api.andrewheiss.com/get_token', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify({
+        username: username,
+        password: password
+      })
+    })
+    .then(response => response.json())
+    .then(data => {
+      if (data.token) {
+        localStorage.setItem('magical_token', data.token);
+        login_note.innerHTML = `
+          <div id="alertContainer" class="container mt-3">
+            <div class="alert alert-success" role="alert">
+                Logged in!
+            </div>
+          </div>
+        `;
+      } else {
+        throw new Error('No token in response');
+      }
+    })
+    .catch(function(error) {
+      console.log(error);
+      login_note.innerHTML = `
+        <div id="alertContainer" class="container mt-3">
+          <div class="alert alert-warning" role="alert">
+              Wrong username or password!
+          </div>
+        </div>
+      `;
+    });
+  });
+</script>
+```
+
+:::
+
+If you want to make sure the token was retrieved and stored, open the Console tab in the browser Inspection panel (right click and choose "Inspect"), and run `localStorage.getItem("magical_token");` in the console. If you want to log out, or delete the stored token, click on this button:
+
+::: {.panel-tabset}
+### Button for logging out
+
+```{=html}
+<div id="logout-note"></div>
+
+<div class="d-flex justify-content-center">
+    <button id="logout-button" class="btn btn-danger">Logout</button>
+</div>
+
+<script>
+document.getElementById('logout-button').addEventListener('click', function() {
+  let logout_note = document.getElementById('logout-note');
+  
+  if(localStorage.getItem('magical_token') !== null) {
+      localStorage.removeItem('magical_token');
+      logout_note.innerHTML = `
+        <div id="alertContainer" class="container mt-3">
+          <div class="alert alert-success" role="alert">
+              Logged out!
+          </div>
+        </div>
+      `;
+  } else {
+      logout_note.innerHTML = `
+        <div id="alertContainer" class="container mt-3">
+          <div class="alert alert-warning" role="alert">
+              No JWT token found in local storage!
+          </div>
+        </div>
+      `;
+  }
+});
+</script>
+```
+
+### Code for logging out
+
+```{.html}
+<div id="logout-note"></div>
+
+<div class="d-flex justify-content-center">
+    <button id="logout-button" class="btn btn-danger">Logout</button>
+</div>
+
+<script>
+document.getElementById('logout-button').addEventListener('click', function() {
+  let logout_note = document.getElementById('logout-note');
+  
+  if(localStorage.getItem('magical_token') !== null) {
+      localStorage.removeItem('magical_token');
+      logout_note.innerHTML = `
+        <div id="alertContainer" class="container mt-3">
+          <div class="alert alert-success" role="alert">
+              Logged out!
+          </div>
+        </div>
+      `;
+  } else {
+      logout_note.innerHTML = `
+        <div id="alertContainer" class="container mt-3">
+          <div class="alert alert-warning" role="alert">
+              No JWT token found in local storage!
+          </div>
+        </div>
+      `;
+  }
+});
+</script>
+```
+:::
+
+Now that we have a token stored in the browser, [we can make a POST request with `d3.json()`](https://observablehq.com/@mbostock/posting-with-fetch). This will only work if you're logged in. If you're not, you'll get a 401 error. If you just logged in using the form earlier, refresh this page so that the Observable code can use that newly stored token.
+
+```{ojs}
+//| echo: fenced
+// Get the token from the browser's local storage
+token = localStorage.getItem('magical_token')
+
+// Use the token in a POST request
+d3 = require('d3')
+
+results = await d3.json("https://api.andrewheiss.com/fitbit_googlesheet", {
+  body: "",
+  headers: {
+    "Authorization": `Bearer ${token}`,
+    "content-type": "application/json"
+  },
+  method: "POST"
+})
+
+results
+```
+
+And we can manipulate the results with [Arquero](https://uwdata.github.io/arquero/) and plot them with [Observable Plot](https://observablehq.com/plot/):
+
+```{ojs}
+//| echo: fenced
+import { aq, op } from "@uwdata/arquero"
+
+// Make an Arquero data frame
+daily_data = aq.from(results.summary)
+
+// Calculate total exercise minutes by day of the week
+by_weekday = daily_data
+  .groupby("weekday")
+  .rollup({
+    total_minutes: d => op.sum(d.exercise_minutes),
+    avg_minutes: d => op.mean(d.exercise_minutes)
+  })
+
+by_weekday.view()
+```
+
+
+```{ojs}
+//| echo: fenced
+// There's probably a better way to do this but I don't know JavaScript :shrug:
+weekday_order = ["Sunday", "Monday", "Tuesday", "Wednesday", 
+                 "Thursday", "Friday", "Saturday"]
+
+// Plot it!
+Plot.plot({
+  x: {
+    label: null,
+    domain: weekday_order
+  },
+  y: {
+    label: "Average minutes"
+  },
+  marks: [
+    Plot.ruleY([0]),
+    
+    Plot.barY(by_weekday, {
+      x: "weekday",
+      y: "avg_minutes",
+      fill: "#6621B9",
+      tip: {
+        format: {
+          x: false,
+          y: true
+        }
+      }
+    })
+  ]
+})
+```
+
+
+## Final `plumber.R` file
+
+Here's the final API!:
+
+:::: {.panel-tabset}
+### `plumber.R`
+
+::: {.callout-note}
+[You can also get this directly at GitHub as `stage_5.R`](https://github.com/andrewheiss/basic-plumber-api/blob/main/stage_5.R).
+:::
+
+```{=html}
+<iframe frameborder="0" scrolling="yes" style="width:100%; height:500px;" allow="clipboard-write" src="https://emgithub.com/iframe.html?target=https%3A%2F%2Fgithub.com%2Fandrewheiss%2Fbasic-plumber-api%2Fblob%2Fmain%2Fstage_5.R&style=github&type=code&showBorder=on&showLineNumbers=on&showFileMeta=on&showFullPath=on&showCopy=on&fetchFromJsDelivr=on"></iframe>
+```
+
+### `secrets.R`
+
+::: {.callout-note}
+[You can also get this directly at GitHub as `secrets.R`](https://github.com/andrewheiss/basic-plumber-api/blob/main/secrets.R).
+:::
+
+```{=html}
+<iframe frameborder="0" scrolling="yes" style="width:100%; height:500px;" allow="clipboard-write" src="https://emgithub.com/iframe.html?target=https%3A%2F%2Fgithub.com%2Fandrewheiss%2Fbasic-plumber-api%2Fblob%2Fmain%2Fsecrets.R&style=github&type=code&showBorder=on&showLineNumbers=on&showFileMeta=on&showFullPath=on&showCopy=on&fetchFromJsDelivr=on"></iframe>
+```
+
+::::

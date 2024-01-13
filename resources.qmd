@@ -1,0 +1,30 @@
+# Invaluable resources
+
+## Make
+
+- [Make.com](https://www.make.com/)
+- [How to connect Make to any web service that uses OAuth2 authorization](https://www.make.com/en/help/tutorials/how-to-connect-make-to-any-web-service-that-uses-oauth2-authorization)
+
+## {plumber}
+
+- [{plumber} documentation](https://www.rplumber.io/index.html)
+
+## Quarto + Observable JS
+
+### Observable JS
+
+- Paul Buffa, ["Learn Just Enough JavaScript"](https://observablehq.com/@observablehq/learn-javascript-introduction): A tutorial for basic JavaScript concepts
+- [Observable platform](https://observablehq.com/): Run Observable notebooks on Observable's server
+- [Observable in Quarto](https://quarto.org/docs/computations/ojs.html): Run Observable chunks in Quarto
+
+### Observable Plot
+
+- Allison Horst, ["Plot from ggplot2"](https://observablehq.com/@observablehq/plot-from-ggplot2): A side-by-side translation of ggplot2 to Observable Plot (it's amazing!) 
+- [Full Observable Plot documentation](https://observablehq.com/plot/what-is-plot)
+- [Observable Plot gallery](https://observablehq.com/@observablehq/plot-gallery)
+
+### Arquero
+
+- Allison Horst, ["Wrangling data in Javascript with Arquero: a primer for R users"](https://observablehq.com/@observablehq/data-wrangling-with-arquero-from-r): A side-by-side translation of dplyr to Arquero (it's amazing!)
+- Jeffrey Heer, ["Introducing Arquero"](https://observablehq.com/@uwdata/introducing-arquero): A notebook showing how Arquero works
+- [Full Arquero documentation](https://uwdata.github.io/arquero/)

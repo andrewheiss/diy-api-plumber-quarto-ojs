@@ -1,0 +1,177 @@
+# Example: Fitbit to Airtable
+
+Here we'll connect a Fitbit account to Make, grab summary data for the current day, and feed it to [Airtable](https://airtable.com/). 
+
+Again, there's nothing special about using Airtable here. We could just as easily feed it to Google Sheets or whatever. This is just to show another way you can store stuff. I used Airtable here because I was already using it for other things like tracking my research projects and submissions, so I just decided to stick the Fitbit data there too, because why not.
+
+## Step 1: Create a Fitbit application
+
+Go to [dev.fitbit.com](https://dev.fitbit.com/apps) and register a new application. You can put whatever details you want for all the different URLs, except for the OAuth redirect URL, which needs to be `https://www.integromat.com/oauth/cb/oauth2` ([see Make's instructions for more about that](https://www.make.com/en/help/tutorials/how-to-connect-make-to-any-web-service-that-uses-oauth2-authorization)). Choose a "Personal" application type and "Read Only" access (unless you want to be able to edit your Fitbit data somehow)
+
+![Fitbit OAuth settings](img/fitbit-oauth.png){width=60%}
+
+You should now have some new details, like a client ID, client secret, and some URLS for authorizing and renewing the OAuth token:
+
+![Fitbit app settings](img/fitbit-api.png)
+
+If you click on that little "OAuth 2.0 Tutorial" link down at the bottom, it'll open some interactive documentation for how to use the client ID and secret and interact with the API.
+
+You can also see complete details of the API at [Fitbit's documentation](https://dev.fitbit.com/build/reference/web-api/). For instance, here we're most interested in grabbing [daily summary data](https://dev.fitbit.com/build/reference/web-api/activity/get-daily-activity-summary/), which includes details about steps, exercises, resting heart rate, sleep score, and other stuff. There are other more specific endpoints you can use too, like just your breathing rate, or just your sleep details, etc.
+
+
+## Step 2: Connect Make to Fitbit
+
+### Initial authorization
+
+Next we need to use Make to connect to the Fitbit API. Make doesn't have a built-in module for Fitbit, but we can create our own using an HTTP module. Add a new module, search for "HTTP" and choose the "Make an OAuth 2.0 request":
+
+![Make an OAuth 2.0 request](img/make-new-oauth.png)
+
+In the settings dialog, add a new connection and use all the details from the Fitbit application website, like the special URLs and your client ID and secret:
+
+![Fitbit OAuth settings](img/make-fitbit-oauth.png)
+
+Next, add some possible scopes. These limit what Make is able to access from Fitbit. [The full list of scopes is here](https://dev.fitbit.com/build/reference/web-api/developer-guide/application-design/#Scopes). Here, we'll use `activity`, `heartrate`, `sleep`, and `weight`, but we could use whatever else we wanted too.
+
+![Fitbit scopes](img/make-fitbit-scopes.png)
+
+Before clicking on save, we need to do two more things. Click on the "Show advanced settings" toggle at the bottom of the dialog. The scope separator needs to be "SPACE", not "COMMA" (this controls how the authorization URL is built—we don't want it to sent the scopes part like `activity,heartrate,sleep,weight`, but like `activity+heartrate+sleep+weight`).
+
+And finally (this is the trickiest part!), Fitbit requires a special extra header for [basic HTTP authentication](https://www.debugbear.com/basic-auth-header-generator), with a specific key and value:
+
+``` default
+Key: Authorization
+Value: Basic {base64 encoded version of client_id:client_secret}
+```
+
+That `Value` part is a little tricky. We need to make a base64-encoded version of the Client ID, a colon, and the Client Secret. To illustrate, pretend that the client ID is "ABCDEF" and the client secret is "1a2b3c4d5e6f".
+
+In R, we can do this with `RCurl::base64Encode()`:
+
+```{r}
+id_and_secret <- "ABCDEF:1a2b3c4d5e6f"
+
+RCurl::base64Encode(id_and_secret)
+```
+
+Or we can do it with Python's `base64` module:
+
+```{python}
+import base64
+
+id_and_secret = "ABCDEF:1a2b3c4d5e6f"
+
+encoded_text = base64.b64encode(id_and_secret.encode())
+
+print(encoded_text.decode())
+```
+
+Or we can use pretty much any other programming language. Even JavaScript right in your browser! Right click anywhere on this page, and choose "Inspect" to open an inspection panel. Choose "Console" and run this there:
+
+``` javascript
+btoa("ABCDEF:1a2b3c4d5e6f");
+```
+
+You'll get the same result:
+
+![base64 encoding with JavaScript](img/base64-console.png){width=50%}
+
+Once you have that specially encoded combination of your client ID and client secret, add it to the Make HTTP connection as a header:
+
+``` default
+Key: Authorization
+Value: Basic {base64 encoded version of client_id:client_secret}
+```
+
+![Fitbit OAuth connection advanced settings](img/make-fitbit-oauth-advanced.png)
+
+*Finally*, click on "Save". Make should open a new browser window that will ask you to log in to Fitbit and then verify that you want to give permissions to access your data. Confirm all that and you should have a new working connection!
+
+### Getting daily activity
+
+Phew. Now that that initial connection is working, we don't have to worry about it ever again. We could do all this manually with R, like with the older [{fitbitr}](https://github.com/teramonagi/fitbitr) package, or even accessing the API with [{httr2}](https://httr2.r-lib.org/), but then we'd have to store the token somewhere and refresh it regularly. Make handles all that for us.
+
+We can now use that logged-in session to grab data from the API. In the HTTP module that we've been working with, set the URL to whatever API endpoint you're interested in. Here we want [daily summary data](https://dev.fitbit.com/build/reference/web-api/activity/get-daily-activity-summary/), which uses a URL like this:
+
+``` default
+https://api.fitbit.com/1/user/-/activities/date/2024-01-01.json
+```
+
+We'll make this more dynamic in a bit, but for now, put that URL in the dialog and save it:
+
+![Grab a single day from Fitbit](img/make-fitbit-single-summary.png)
+
+Click "OK" in the module settings and then click on the "Run once" button to test it out. You should get a little thought bubble with a "1" in it showing that there were results. Click on it to see those results. Scroll down to the output section, click on the + next to "Data" and you should see a bunch of JSON:
+
+![JSON results from Fitbit](img/make-fitbit-initial-results.png)
+
+It worked!
+
+However, we've hardcoded the date in the module. We want this to be more dynamic. In my case, I use my workflow to grab *yesterday's* data every day at 10 PM (so that the Fitbit app on my phone has enough time to sync with the server). So we need to somehow generate a correctly formatted date for yesterday.
+
+Add a new module and search for "set variable":
+
+![Add a "Set variable" module](img/make-set-variable.png)
+
+Name the variable something and then click in the "Variable value" field. Make will open a little dialog with lots of possible programming-related options. Click on the calendar icon to see time-related things:
+
+![Time-related variables and functions](img/make-variable-calendar.png)
+
+Using the different buttons in that dialog (you have to click on the function names and the "now" variable; you can't just type them), use this as the value:
+
+``` default
+formatDate(addDays(now; -1); YYYY-MM-DD)
+```
+
+That will subtract a day from the `now` timestamp and then format the resulting day as `YYYY-MM-DD`.
+
+![Generate yesterday's date](img/make-yesterday-value.png)
+
+Click "OK", right click on the tools module, and choose "Run this module only" to see if it works. Click on the little speech bubble to see the results and you should have a variable value that contains yesterday's date in the output section:
+
+![Results from generating yesterday's date](img/make-yesterday-results.png)
+
+We can now use that date as part of the URL we send to the Fitbit API. With that tools module connected to the HTTP module, click on the HTTP module to change its settings. In the URL part, remove the manual date in the URL and replace it with the value of the "yesterday" variable:
+
+![URL using the yesterday variable](img/make-fitbit-get-yesterday.png)
+
+Click OK and run the scenario. Make should generate yesterday's date and use it to grab yesterday's activity summary from Fitbit. Magic!
+
+![Final workflow to get yesterday's Fitbit data](img/make-fitbit-yesterday-final.png)
+
+
+## Step 3: Connect Make to Airtable
+
+We can get now regularly get data from Fitbit, but we have to do something with it. In the [RSS example](rss-googlesheets.qmd), we stored a bunch of fields from the RSS feed as columns in a Google Sheet. We could do that here, but we'll use Airtable, just for fun.
+
+Go to Airtable, make a new account if you don't have one already, and make a new base and table. With the Goodreads example, we made columns for all the different Goodreads feed items, like title, author, rating, and so on. Here we won't do that. The Fitbit data is a lot more complex, with all sorts of nested data (like if you have multiple activities during the day, you'll get a nested list with items for each activity). Processing and cleaning all that nested data is messy and hard and while I guess we could maybe force Make to do it, I don't want to try. Instead, we'll just save the whole JSON object to Airtable and then work with it later in R.
+
+In your new table, make sure there's a column for the date and one for data. These can be named whatever you want—just make sure that the date column uses the date type and is formatted as ISO (YYYY-MM-DD) and that the data column uses the long text type:
+
+::: {.panel-tabset}
+### Date column
+
+![Airtable date column](img/airtable-date-column.png)
+
+### Data column
+
+![Airtable data column](img/airtable-data-column.png)
+:::
+
+Back at your Make scenario, add a new module for creating a record in Airtable:
+
+![Create new record with Airtable](img/make-airtable-new-record.png)
+
+Add a new connection to your Airtable account, which will authorize Make to access Airtable. Then choose the base and table you want to insert stuff into. Tell it to insert yesterday's date as the `date` and to insert the whole `Data` JSON output as the `data`. If we really wanted, we could insert a special Make module that parses the JSON before it gets to the Airtable module so we can extract specific pieces from the data, but that's hard and using R to work with JSON is a lot easier, so we'll just store the complete raw JSON results.
+
+![Airtable new record settings](img/make-fitbit-airtable-settings.png)
+
+And that's it! Run the scenario and it should get yesterday's data from Fitbit and insert the raw JSON into Airtable. 
+
+![Final Fitbit to Airtable scenario](img/make-fitbit-airtable-final.png)
+
+If you want to collect earlier dates, you can change the URL in the HTTP module to whatever date you want, or if you wanted to be super fancy, you could create an [Iterator module](https://www.make.com/en/help/modules/iterator) to loop through a bunch of past dates. Set a schedule for the scenario, like having it run once a day at some specific time, and it should just work.
+
+Your Airtable table should look something like this:
+
+![Airtable database with raw JSON in it](img/airtable-health.png)

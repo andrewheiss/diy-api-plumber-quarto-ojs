@@ -1,0 +1,54 @@
+@import url('https://fonts.googleapis.com/css2?family=Inter:ital,wght@0,300;0,400;0,700;1,300;1,400;1,700&display=swap');
+
+/*-- scss:defaults --*/
+$font-family-sans-serif: Inter, sans-serif !default;
+
+$white: #fff !default;
+$gray-100: #f8f9fa !default;
+$gray-200: #e9ecef !default;
+$gray-300: #ddd !default;
+$gray-400: #ced4da !default;
+$gray-500: #adb5bd !default;
+$gray-600: #868e96 !default;
+$gray-700: #495057 !default;
+$gray-800: #343a40 !default;
+$gray-900: #212529 !default;
+$black: #000 !default;
+
+$primary: #d8249c !default;
+$secondary: #6621B9 !default;
+$success: #768567 !default;
+$info: #221622 !default;
+$warning: #f3752f !default;
+$danger: #f44336 !default;
+$light: $gray-100 !default;
+$dark: $gray-800 !default;
+
+/*-- scss:rules --*/
+.tab-content.quarto-iframe {
+  height: 500px;
+}
+
+.sidebar-item .text-start .menu-text {
+  font-weight: bold;
+}
+
+thead th {
+  text-transform: none;
+}
+
+// Remove margin on pre in output
+.cell-output-stdout pre {
+  margin-bottom: 0;
+}
+
+// Format output and plain text blocks like code
+.cell-output-stdout, pre.text {
+  margin: 0 0 1em;
+  border: none;
+  padding: .4em;
+  background-color: rgba(233,236,239,.65);
+  border: 1px solid rgba(233,236,239,.65);
+  border-radius: .25rem;
+  color: #5e5e5e;
+}

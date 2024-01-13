@@ -1,0 +1,232 @@
+---
+title: "Example reading dashboard"
+execute:
+  echo: false
+  output: false
+format:
+  dashboard: 
+    embed-resources: true  # For iframe purposes; this ordinarily isn't necessary
+    theme:
+      - zephyr
+      - custom.scss
+---
+
+```{ojs}
+import { aq, op } from "@uwdata/arquero"
+d3 = require('d3')
+
+books = await d3.json(
+  // This is my live API so it runs in your browser.
+  // Use your local API URL on your computer.
+  "https://api.andrewheiss.com/books_simple?year=" + year_to_show
+)
+
+// Calculate the percent of the goal
+goal_books = 50
+total_books = books.count[0] == 0 ? 0 : books.count[0]
+pct_goal = total_books / goal_books
+pct_goal_truncated = pct_goal >= 1 ? 1 : 0
+
+// Calculate the average rating from the full data
+books_full = aq.from(books.full_data)  // Make an Arquero data frame
+
+avg_rating = books_full
+  .rollup({
+    rating: d => op.mean(d.rating)
+  })
+text_avg_rating = avg_rating.get('rating', 0).toFixed(2)
+
+// Calculate the percent of the year
+// This is soooo janky and sad and cobbled together with zombie code from 
+// GitHub Copilot, but it works, so whatever
+year_info = {
+  const empty_date = new Date();
+  const start_of_year = new Date(empty_date.getFullYear(), 0, 1);
+  const end_of_year = new Date(empty_date.getFullYear() + 1, 0, 1);
+  const year_progress = ((empty_date - start_of_year) / (end_of_year - start_of_year));
+
+  const isLeapYear = (empty_date.getFullYear() % 4 == 0) && (empty_date.getFullYear() % 100 != 0) || (empty_date.getFullYear() % 400 == 0);
+  const daysInYear = isLeapYear ? 366 : 365;
+
+  const diff = empty_date - start_of_year;
+  const oneDay = 1000 * 60 * 60 * 24;
+  const day = Math.floor(diff / oneDay) + 1;
+  
+  const text = "Day " + day + " of " + daysInYear;
+
+  return {
+    pct_year: year_progress, 
+    days_in_year: daysInYear, 
+    yday: day,
+    text: text
+  }
+}
+
+// Make a little Arquero dataframe of progress details for plotting
+progress_data = aq.from([
+  {type: "Year complete", name: "Completed", value: year_info.pct_year, 
+   label_right: `${(year_info.pct_year * 100).toFixed(2)}%`, 
+   label_left: year_info.text},
+  {type: "Year complete", name: "Remaining", value: 1 - year_info.pct_year},
+  
+  {type: "Books", name: "Completed", value: pct_goal_truncated, 
+   label_right: `${(pct_goal * 100).toFixed(2)}%`, 
+   label_left: op.round(total_books) + " of " + goal_books + " books"},
+  {type: "Books", name: "Remaining", value: 1 - pct_goal_truncated}
+])
+```
+
+# Books
+
+## Row {height=20%}
+
+```{ojs}
+//| output: true
+Plot.plot({
+  color: {
+    range: ["#6621B9", "#868e96"]
+  },
+  x: {axis: null},
+  y: {axis: null},
+  marks: [
+    Plot.barX(progress_data, {
+      x: "value", 
+      y: "type", 
+      fill: "name"
+    }),
+    Plot.text(progress_data.filter(d => d.name == "Completed"), {
+      x: 0,
+      y: "type",
+      text: "label_left",
+      fill: "white",
+      frameAnchor: "middle",
+      textAnchor: "start",
+      dx: 5,
+      fontWeight: "bold",
+      fontSize: 15,
+      fontFamily: "Inter"
+    }),
+    Plot.text(progress_data.filter(d => d.name == "Completed"), {
+      x: 1,
+      y: "type",
+      text: "label_right",
+      fill: "white",
+      frameAnchor: "middle",
+      textAnchor: "end",
+      dx: -5,
+      fontWeight: "bold",
+      fontSize: 15,
+      fontFamily: "Inter"
+    })
+  ]
+})
+```
+
+
+## Row {height=25%}
+
+```{ojs}
+//| output: true
+//| title: "Magically choose the year!"
+viewof year_to_show = Inputs.radio(["2023", "2024"], {value: "2023", label: "Year to show"})
+```
+
+::: {.valuebox icon="book" color="secondary"}
+Total books
+
+${total_books}
+:::
+
+::: {.valuebox icon="star-fill" color="success"}
+Average rating
+
+${text_avg_rating}
+:::
+
+
+## Row {height=55%}
+
+```{ojs}
+//| output: true
+//| title: "Books per month"
+Plot.plot({
+  y: {
+    label: "Books read",
+    grid: false,
+    percent: false
+  },
+  x: {
+    label: "Month",
+    domain: books.monthly_count.map(d => d.read_month_fct),
+  },
+  marks: [
+    Plot.ruleY([0]),
+    Plot.axisX({label: null, ticks: null, fontFamily: "Inter"}),
+    Plot.axisY({label: null, ticks: null, fontFamily: "Inter"}),
+
+    Plot.barY(books.monthly_count, {
+      x: "read_month_fct", 
+      y: "count", 
+      fill: "#f3752f",
+      tip: {
+        format: {
+          x: true,
+          y: true
+        },
+        fontFamily: "Inter"
+      }
+    })
+  ]
+})
+```
+
+
+```{ojs}
+//| output: true
+//| title: "All books in reverse order"
+
+// Arquero is goofy about the scope of functions, and something like this doesn't work:
+//
+// .derive({ nice_date: d => op.parse_date(d.timestamp).format('MMMM dd, yyyy') })
+//
+// So we make a custom function here and add it as a valid Arquero function. See
+// https://uwdata.github.io/arquero/api/extensibility#addFunction
+function format_nice_date(date_string) {
+  const date = new Date(date_string);
+  return new Intl.DateTimeFormat('en-US', { year: 'numeric', month: 'long', day: 'numeric' }).format(date);
+}
+
+added_function = aq.addFunction('format_nice_date', format_nice_date)
+
+books_full
+  .derive({
+    time_actual: d => op.parse_date(d.timestamp),
+    pretty_date: d => format_nice_date(d.timestamp),
+  })
+  .orderby(aq.desc("time_actual"))
+  .select({"pretty_date": "Read date", "book_title": "Title", "book_author": "Author", "rating": "Rating"})
+  .view()
+```
+
+# Login
+
+::: {.card}
+Here's a login form. It doesn't actually do anything. But if you needed to generate a JWT token for making POST requests, you could make it do something.
+
+```{=html}
+<div class="grid">
+  <div class="g-col-12 g-col-md-6 g-start-0 g-start-md-4">
+    <form id="login">
+      <div class="mb-3">
+        <input type="text" id="username" class="form-control" placeholder="Name" aria-label="Name">
+      </div>
+      <div class="mb-3">
+        <input type="password" id="password" class="form-control" placeholder="Password" aria-label="Password">
+      </div>
+      <button type="submit" class="btn btn-success">Submit</button>
+      <button id="logout-button" class="btn btn-danger">Logout</button>
+    </form>
+  </div>
+</div>
+```
+:::

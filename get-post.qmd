@@ -1,0 +1,38 @@
+# GET vs. POST
+
+With our [basic {plumber} API](plumber.qmd#final-minimal-example-plumber.r-file), we can make a new endpoint that will grab the raw Goodreads data from Google Sheets, clean it up, and spit it out as JSON that we can use wherever we want.
+
+But first, some quick notes about some internet infrastructure stuff. In the ongoing example, we have two endpoints:
+
+``` r
+#* Plot a fancy histogram
+#* @get /plot
+function(n = 100) {
+  # STUFF HERE
+}
+
+#* Return clean penguins data
+#* @get /penguins
+function() {
+  # STUFF HERE
+}
+```
+
+Both of them use `@get` to create GET endpoints. This means that you can access them directly from a URL.
+
+In general, there are two common ways to send HTTP requests: GET and POST.[^get-post-1] Here's my oversimplified mental model for how these two methods work:
+
+[^get-post-1]: There are technically more than these two, but whatever; this is a simplified guide.
+
+| Method | How it works                                                  | Example                                                                           | When you'd use it                                                                                                                                                           |
+|---------------|---------------|---------------|---------------------------|
+| GET    | Any parameters passed to the server appear in the URL         | `http://localhost:6312/plot?n=500`                                                | All over the place. You see these all the time. Whenever you see things that look like variables in a URL (like `whatever.com/blah?thing1=5&thing2=10`) it's a GET request. |
+| POST   | Any parameters passed to the server appear behind the scenes  | `http://localhost:6312/login` with parameters included in the body of the request | Login forms, anything else where you don't want sensitive information to be publicly viewable or logged. You can't really make these requests with just a URL.              |
+
+::: callout-tip
+### Simplified tl;dr
+
+Use GET when you're passing non-sensitive things to the server.
+
+Use POST when you're passing sensitive things to the server.
+:::
