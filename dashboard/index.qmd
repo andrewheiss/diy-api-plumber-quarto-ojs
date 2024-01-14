@@ -25,7 +25,7 @@ books = await d3.json(
 goal_books = 50
 total_books = books.count[0] == 0 ? 0 : books.count[0]
 pct_goal = total_books / goal_books
-pct_goal_truncated = pct_goal >= 1 ? 1 : 0
+pct_goal_truncated = pct_goal >= 1 ? 1 : pct_goal
 
 // Calculate the average rating from the full data
 books_full = aq.from(books.full_data)  // Make an Arquero data frame
