@@ -8,7 +8,7 @@ book:
   author:
   - name: Andrew Heiss
     orcid: 0000-0002-3948-3914
-  date: "2024-01-09"
+  date: "2024-01-12"
 
   repo-url: "https://github.com/andrewheiss/diy-api-plumber-quarto-ojs"
   repo-actions: [edit, issue]
