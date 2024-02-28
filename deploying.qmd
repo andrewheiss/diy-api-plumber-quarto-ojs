@@ -6,24 +6,30 @@ But you probably want to make it more publicly accessible. And that's a little t
 
 The {plumber} documentation [has a whole page about hosting the API](https://www.rplumber.io/articles/hosting.html), with several different options. The most common options (unless you somehow have access to Posit Connect, which lets you do this all automatically) are to use something like a $4/month [DigitalOcean](https://www.digitalocean.com/) server and [the {plumberDeploy} package](https://github.com/meztez/plumberDeploy), or to use [Docker](https://www.docker.com/) and run the Docker image on any server. 
 
-::: {.callout-tip}
-### What I do
 
-Or do what I do and use Docker *on* a DigitalOcean server. This makes it so I can SSH into my server (or use [Visual Studio Code's remote session feature](https://code.visualstudio.com/docs/remote/remote-overview)), run this:
+## The super easy way
 
-``` sh
-docker-compose up -d --build
+I actually use Docker *on* a DigitalOcean server. To make it even easier, I use Docker Compose to connect my {plumber} image with a [Caddy webserver](https://caddyserver.com/), which automatically handles HTTPS/SSL/TLS. You can see a [minimal example of the configuration at this repository here](https://github.com/andrewheiss/docker-plumber-caddy). It has just two services or containers defined in `docker-compose.yml`:
+
+1. `plumber`: This runs a simple plumber app in `plumber-thing/` that exposes the API on port 8000. This is exposed on an internal local network that only Docker Compose can see—the broader internet can't see it. 
+2. `caddy`: This is a web server that automatically makes HTTPS work. When you run stuff locally, it creates self-signed SSL certificates; when you run it on a publicly accessible server, it creates SSL certificates through Let's Encrypt. The server configuration in `caddy/Caddyfile` forwards all traffic to `https://api.localhost` to the plumber app that's running on port 8000.
+
+And that's it!
+
+To do this yourself on DigitalOcean, create a new cheapo Droplet ([use this link to create a DigitalOcean account and get $200 for free, if you want](https://m.do.co/c/cec0de11762e)), and follow these guides to get it set up:
+
+- [Initial server setup](https://www.digitalocean.com/community/tutorials/initial-server-setup-with-ubuntu-22-04) for setting up SSH, correct user groups, firewall, etc.
+- [Installing Docker](https://www.digitalocean.com/community/tutorials/how-to-install-and-use-docker-on-ubuntu-22-04) for installing, um, Docker
+- [Installing Docker Compose](https://www.digitalocean.com/community/tutorials/how-to-install-and-use-docker-compose-on-ubuntu-22-04) for installing Docker Compose
+
+Then, using a DNS service (iwantmyname, GoDaddy, whatever), point a domain name (like api.example.com) to the new DigitalOcean server's IP address.
+
+Put the repository on the server (use [Visual Studio Code's remote session feature](https://code.visualstudio.com/docs/remote/remote-overview) to make life easier) and edit `caddy/Caddyfile` with the domain name.
+
+Finally, from your server's terminal, run this
+
+```sh
+docker compose -f docker-compose.yml -d up
 ```
 
-…and it's live and ready to go.
-
-The way I figured out how to get everything configured was [following DigitalOcean's docker-compose tutorial here](https://www.digitalocean.com/community/tutorials/how-to-secure-a-containerized-node-js-application-with-nginx-let-s-encrypt-and-docker-compose), but replacing references to their example Node app with my Plumber app.
-
-[This repository](https://github.com/andrewheiss/docker-plumber-nginx-letsencrypt) provides a basic example of what that looks like.
-:::
-
-Because there are so many ways to get the API live, and so many moving parts (setting up nginx or Apache, setting up Docker and/or docker-compose, setting up [Let's Encrypt](https://letsencrypt.org/) for https, etc.), setting this up goes beyond the scope of this tutorial. 
-
-I unfortunately must leave you with the infamous owl. You're on your own for this :(
-
-![Draw the rest of the f—ing owl](img/draw-owl.jpeg)
+Go to `https://api.example.com/__docs__/` and you should see the Plumber documentation page, and you're done!
