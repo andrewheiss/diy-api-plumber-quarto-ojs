@@ -46,12 +46,13 @@ Value: Basic {base64 encoded version of client_id:client_secret}
 
 That `Value` part is a little tricky. We need to make a base64-encoded version of the Client ID, a colon, and the Client Secret. To illustrate, pretend that the client ID is "ABCDEF" and the client secret is "1a2b3c4d5e6f".
 
-In R, we can do this with `RCurl::base64Encode()`:
+In R, we can do this with `RCurl::base64Encode()` or `jsonlite::base64_enc()`:
 
 ```{r}
 id_and_secret <- "ABCDEF:1a2b3c4d5e6f"
 
 RCurl::base64Encode(id_and_secret)
+jsonlite::base64_enc(id_and_secret)
 ```
 
 Or we can do it with Python's `base64` module:
